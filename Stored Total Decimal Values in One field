@@ -1,0 +1,13 @@
+ local procedure Updatetotalmarks()     //Call this function on this triggers --> OnValidate | OnAfterGetRecord | OnAfterGetCurrRecord
+    var
+        GradLine: Record "Graduate Line";
+    begin
+        Clear(totalmarks);
+        GradLine.Reset();
+        GradLine.SetRange("Document No.", Rec."Document No.");
+        IF GradLine.FindSet() then begin
+            repeat
+                totalmarks += GradLine."Marks Obtained";
+            until GradLine.Next() = 0;
+        end;
+    end;
