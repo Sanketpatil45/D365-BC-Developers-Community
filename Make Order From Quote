@@ -1,0 +1,39 @@
+procedure MakeOrderFromQuote(SalesQuote: Record "Sales Header")
+    var
+        SalesOrder: Record "Sales Header";
+        SalesRecSetup: Record "Sales & Receivables Setup";
+        NoSeriesMgmt: Codeunit NoSeriesManagement;
+        SalesQuoteLine: Record "Sales Line";
+        SalesOrderLine: Record "Sales Line";
+    begin
+        SalesQuote.TestField(Status, 1); //Check Quote Status = Released
+        IF NOT Confirm('Do you want to convert the quote to an order??', false) then exit;
+        SalesRecSetup.Get();
+        SalesOrder.Init();
+        SalesOrder."Document Type" := SalesOrder."Document Type"::Order;
+        SalesOrder."No." := NoSeriesMgmt.GetNextNo(SalesRecSetup."Order Nos.", Today, True);
+        SalesOrder.Validate("Sell-to Customer No.", SalesQuote."Sell-to Customer No.");
+        SalesOrder.Validate("Quote No.", SalesQuote."No.");
+        SalesOrder.Insert(true);
+        //Flow Sales Quote Lines --> Sales Order Lines            
+        SalesQuoteLine.Reset();
+        SalesQuoteLine.SetRange("Document Type", SalesQuote."Document Type");
+        SalesQuoteLine.SetRange("Document No.", SalesQuote."No.");
+        if SalesQuoteLine.FindSet() then begin
+            repeat
+                SalesOrderLine.Init();
+                SalesOrderLine."Line No." += 10000;
+                SalesOrderLine."Document Type" := SalesOrder."Document Type";
+                SalesOrderLine."Document No." := SalesOrder."No.";
+                SalesOrderLine.Validate(Type, SalesQuoteLine.Type);
+                SalesOrderLine.Validate("No.", SalesQuoteLine."No.");
+                SalesOrderLine.Validate(Quantity, SalesQuoteLine.Quantity);
+                SalesOrderLine.Insert(true);
+            until SalesQuoteLine.Next() = 0;
+            SalesQuote.Delete();
+            SalesQuoteLine.Delete();
+            if Confirm('The Quote has been converted to Order %1. Do you want to open the Sales Order', true, SalesOrder."No.") then begin
+                Page.Run(Page::"Sales Order", SalesOrder);
+            end;
+        end;
+    end;
