@@ -1,0 +1,140 @@
+xmlport 50112 "Import Item Journal"
+{
+    Caption = 'Item Journal Import';
+    Format = VariableText;
+    Direction = Import;
+    FileName = 'ImportItemJournal.csv';
+
+    schema
+    {
+        textelement(RootNodeName)
+        {
+            XmlName = 'Root';
+            tableelement(ItemJournalLine; "Item Journal Line")
+            {
+                XmlName = 'ItemJnlLine';
+                fieldelement(TemplateName; ItemJournalLine."Journal Template Name")
+                {
+                }
+                fieldelement(BatchName; ItemJournalLine."Journal Batch Name")
+                {
+                }
+                fieldelement(PostingDate; ItemJournalLine."Posting Date")
+                {
+                }
+                fieldelement(EntryType; ItemJournalLine."Entry Type")
+                {
+                }
+                fieldelement(DocNo; ItemJournalLine."Document No.")
+                {
+                }
+                fieldelement(ItemNo; ItemJournalLine."Item No.")
+                {
+                    XmlName = 'ItemNo';
+                }
+                fieldelement(LocationCode; ItemJournalLine."Location Code")
+                {
+                }
+                fieldelement(Quantity; ItemJournalLine.Quantity)
+                {
+                }
+                fieldelement(UnitAmount; ItemJournalLine."Unit Amount")
+                {
+                }
+                fieldelement(BusDivCode; ItemJournalLine."Shortcut Dimension 1 Code")
+                {
+                    XmlName = 'BusinessDevisionCode';
+                }
+                fieldelement(SiteCode; ItemJournalLine."Shortcut Dimension 2 Code")
+                {
+                    XmlName = 'SiteCode';
+                }
+                // textelement(DepttCode)  //Fields which not in Table but on page use textelement
+                // {
+                //     XmlName = 'DepttCode';
+                // }
+                fieldelement(ExtDocNo; ItemJournalLine."External Document No.")
+                {
+                }
+                trigger OnBeforeInsertRecord()
+                begin
+                    // IF DepttCode <> '' THEN BEGIN  //ShortcutDim-3
+                    //     Deptt_gCode := DepttCode;
+                    //     ItemJournalLine.ValidateShortcutDimCode(3, Deptt_gCode);
+                    // END;
+                    LastEntryNo := LastEntryNo + 10000;
+                    ItemJournalLine."Journal Template Name" := 'ITEM';
+                    ItemJournalLine.validate("Journal Batch Name", 'DEFAULT');
+                    ItemJournalLine."Line No." := LastEntryNo;
+                END;
+
+                trigger OnAfterInitRecord()
+                begin
+                    Count_gInt += 1;
+                    IF Count_gInt < 2 THEN
+                        currXMLport.SKIP;
+                end;
+
+                trigger OnAfterInsertRecord()
+                var
+                    myInt: Integer;
+                begin
+                    Windows.UPDATE(1, 'Total Record Inserted ' + Format(InsertCount));
+                    InsertCount := InsertCount + 1;
+                end;
+            }
+        }
+    }
+
+    trigger OnPreXmlPort()
+    var
+        TestItemJournalLine: Record "Item Journal Line";
+    begin
+        CLEAR(Count_gInt);
+        Windows.OPEN('##1######## Import Item Journal ###\\\');
+        TestItemJournalLine.Reset();
+        TestItemJournalLine.SetRange("Journal Template Name", 'ITEM');
+        TestItemJournalLine.SetRange("Journal Batch Name", 'DEFAULT');
+        if TestItemJournalLine.FindLast() then
+            LastEntryNo := TestItemJournalLine."Line No.";
+    end;
+
+    trigger OnPostXmlPort()
+    begin
+        Windows.Close();
+        MESSAGE('Item journal imported Successfully');
+    end;
+
+    var
+        Windows: Dialog;
+        Count_gInt: Integer;
+        Deptt_gCode: Code[20];
+        LastEntryNo: Integer;
+        InsertCount: Integer;
+}
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+pageextension 50140 "Item Journal Ext" extends "Item Journal"
+{
+    actions
+    {
+        addlast("&Line")
+        {
+            action("Import Data")
+            {
+                ApplicationArea = All;
+                Caption = 'Import From Excel';
+                Ellipsis = true;
+                Image = ImportExcel;
+                Promoted = true;
+                PromotedCategory = Category6;
+                trigger OnAction()
+                begin
+                    Xmlport.Run(Xmlport::"Import Item Journal", false, true, Rec);
+                end;
+            }
+        }
+    }
+}
+
