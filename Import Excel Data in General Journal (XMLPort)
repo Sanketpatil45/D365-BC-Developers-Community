@@ -1,0 +1,141 @@
+xmlport 50115 "Import General Journal"
+{
+    Caption = 'Import General Journal';
+    Format = VariableText;
+    Direction = Import;
+    FileName = 'ImportGenJournal.csv';
+    schema
+    {
+        textelement(RootNodeName)
+        {
+            tableelement(GenJournalLine; "Gen. Journal Line")
+            {
+                fieldelement(JournalTempName; GenJournalLine."Journal Template Name")
+                {
+                }
+                fieldelement(JournalBatchName; GenJournalLine."Journal Batch Name")
+                {
+                }
+                fieldelement(PostingDate; GenJournalLine."Posting Date")
+                {
+                }
+                fieldelement(DocumentType; GenJournalLine."Document Type")
+                {
+                }
+                fieldelement(DocumentNo; GenJournalLine."Document No.")
+                {
+                }
+                fieldelement(Amount; GenJournalLine.Amount)
+                {
+                }
+                fieldelement(AccountType; GenJournalLine."Account Type")
+                {
+                }
+                fieldelement(AccountNo; GenJournalLine."Account No.")
+                {
+                }
+                fieldelement(BalAccountType; GenJournalLine."Bal. Account Type")
+                {
+                }
+                fieldelement(BalAccountNo; GenJournalLine."Bal. Account No.")
+                {
+                }
+                fieldelement(SourceType; GenJournalLine."Source Type")
+                {
+                }
+                fieldelement(SourceNo; GenJournalLine."Source No.")
+                {
+                }
+                fieldelement(ExternalDocumentNo; GenJournalLine."External Document No.")
+                {
+                }
+                fieldelement(GenPostType; GenJournalLine."Gen. Posting Type")
+                {
+                }
+                fieldelement(GenBusPosGroup; GenJournalLine."Gen. Bus. Posting Group")
+                {
+                }
+                fieldelement(GenProdPosGroup; GenJournalLine."Gen. Prod. Posting Group")
+                {
+                }
+                fieldelement(BusDivCode; GenJournalLine."Shortcut Dimension 1 Code")
+                {
+                }
+                fieldelement(SiteCode; GenJournalLine."Shortcut Dimension 2 Code")
+                {
+                }
+                trigger OnBeforeInsertRecord()
+                var
+                    TestGenJournalLine: Record "Gen. Journal Line";
+                begin
+                    LastEntryNo := LastEntryNo + 10000;
+                    GenJournalLine."Journal Template Name" := 'GENERAL';
+                    GenJournalLine.validate("Journal Batch Name", 'DEFAULT');
+                    GenJournalLine."Line No." := LastEntryNo;
+                end;
+                trigger OnAfterInitRecord()
+                begin
+                    Count_gInt += 1;
+                    IF Count_gInt < 2 THEN
+                        currXMLport.SKIP;
+                end;
+                trigger OnAfterInsertRecord()
+                var
+                    myInt: Integer;
+                begin
+                    Windows.UPDATE(1, 'Total Record Inserted ' + Format(InsertCount));
+                    InsertCount := InsertCount + 1;
+                end;
+            }
+        }
+    }
+    trigger OnPreXmlPort()
+    var
+        TestGenJournalLine: Record "Gen. Journal Line";
+    begin
+        Windows.OPEN('##1######## Import General Journal ###\\\');
+        LastEntryNo := 0;
+        TestGenJournalLine.Reset();
+        TestGenJournalLine.SetRange("Journal Template Name", 'GENERAL');
+        TestGenJournalLine.SetRange("Journal Batch Name", 'DEFAULT');
+        if TestGenJournalLine.FindLast() then
+            LastEntryNo := TestGenJournalLine."Line No.";
+    end;
+
+    trigger OnPostXmlPort()
+    begin
+        Windows.Close;
+    end;
+
+    var
+        Count_gInt: Integer;
+        Windows: Dialog;
+        InsertCount: Integer;
+        LastEntryNo: Integer;
+}
+
+-------------------------------------------------------------------------------------------------------------------------
+pageextension 50141 "General Journal Ext" extends "General Journal"
+{
+    actions
+    {
+        addafter(Dimensions)
+        {
+            action("Import Data")
+
+            {
+                ApplicationArea = All;
+                Caption = 'Import From Excel';
+                Ellipsis = true;
+                Image = ExportToExcel;
+                Promoted = true;
+                PromotedCategory = Category10;
+                trigger OnAction()
+                begin
+                    Xmlport.Run(Xmlport::"Import General Journal", false, true, Rec);
+                end;
+            }
+        }
+    }
+}
+
