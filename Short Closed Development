@@ -1,0 +1,101 @@
+Report 50000 "Apply Short Closed"
+{
+    Caption = 'Apply Short Closed';
+    UsageCategory = ReportsAndAnalysis;
+    ProcessingOnly = true;
+    Permissions = tabledata "Sales Line" = RM;
+    requestpage
+    {
+        layout
+        {
+            area(content)
+            {
+                field(CustomerNO; CustomerNO)
+                {
+                    ApplicationArea = All;
+                    TableRelation = Customer;
+                    LookupPageId = "Customer List";
+                    Caption = 'Customer No.';
+                    ShowMandatory = True;
+                    trigger OnValidate()
+                    var
+                        Customer: Record Customer;
+                    begin
+                        IF Customer.GET(CustomerNO) then
+                            CustomerName := Customer.Name
+                        ELSE
+                            CustomerName := '';
+                    end;
+                }
+                field(CustomerName; CustomerName)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Customer Name';
+                    Editable = False;
+                }
+                field(PostingDate; PostingDate)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Date';
+                    ShowMandatory = true;
+                }
+            }
+        }
+    }
+    trigger OnPreReport()
+    begin
+        IF CustomerNO = '' then
+            Error('Customer No. is Mandatory to Apply Short Closed');
+        IF PostingDate = 0D then
+            Error('Date is Mandatory to Apply Short Closed');
+    end;
+
+
+    trigger OnPostReport()
+    begin
+        SalesHeaderG.Reset();
+        SalesHeaderG.SetRange("Document Type", SalesHeaderG."Document Type"::"Blanket Order");
+        SalesHeaderG.SetCurrentKey("Sell-to Customer No.");
+        SalesHeaderG.SetRange("Sell-to Customer No.", CustomerNO);
+        IF SalesHeaderG.FindFirst() then begin
+            SalesHeaderG2.Reset();
+            SalesHeaderG2.SetRange("Document Type", SalesHeaderG."Document Type");
+            SalesHeaderG2.SetRange("Sell-to Customer No.", SalesHeaderG."Sell-to Customer No.");
+            SalesHeaderG2.SetFilter("Order Date", '<%1', PostingDate);
+            IF SalesHeaderG2.FindSet() then begin
+                REPEAT
+                    SalesLineG.Reset();
+                    SalesLineG.SetRange("Document Type", SalesHeaderG2."Document Type");
+                    SalesLineG.SetRange("Document No.", SalesHeaderG2."No.");
+                    SalesLineG.SetRange(Type, SalesLineG.Type::Item);
+                    IF SalesLineG.FindSet() then begin
+                        REPEAT
+                            IF (SalesLineG.Quantity > SalesLineG."Quantity Shipped") then begin
+                                SalesLineG.Quantity := SalesLineG."Quantity Shipped";
+                                SalesLineG."Quantity (Base)" := SalesLineG."Qty. Shipped (Base)";
+                                SalesLineG."Outstanding Quantity" := 0;
+                                SalesLineG."Outstanding Qty. (Base)" := 0;
+                                SalesLineG.VALIDATE("Qty. to Ship", 0);
+                                SalesLineG.VALIDATE("Qty. to Invoice", 0);
+                                SalesLineG."Completely Shipped" := True;
+                                SalesLineG.ShortClose := True;
+                                SalesLineG.Modify();
+                            end;
+                        UNTIL SalesLineG.Next() = 0;
+                    end;
+                UNTIL SalesHeaderG2.Next() = 0;
+                Message('Short Closed Successfully');
+            end
+            else
+                Message('Blanket Orders not found within filtered values');
+        end;
+    end;
+
+    var
+        SalesHeaderG: Record "Sales Header";
+        SalesHeaderG2: Record "Sales Header";
+        SalesLineG: Record "Sales Line";
+        CustomerNO: Code[20];
+        CustomerName: Text[100];
+        PostingDate: Date;
+}
