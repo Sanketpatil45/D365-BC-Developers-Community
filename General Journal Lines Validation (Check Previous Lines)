@@ -1,0 +1,31 @@
+tableextension 50016 "Gen. Journal Line" extends "Gen. Journal Line"
+{
+    //Previous Lines Validation Before Inserting current Line.
+    trigger OnBeforeInsert()
+    var
+        GenJOurnalLine: Record "Gen. Journal Line";
+    begin
+        GenJOurnalLine.Reset();
+        GenJOurnalLine.SetRange("Journal Template Name", Rec."Journal Template Name");
+        GenJOurnalLine.SetRange("Journal Batch Name", Rec."Journal Batch Name");
+        IF GenJOurnalLine.FindFirst() then begin
+            GenJnlLine_GRec.Reset();
+            GenJnlLine_GRec.SetRange("Journal Template Name", GenJOurnalLine."Journal Template Name");
+            GenJnlLine_GRec.SetFilter("Journal Batch Name", GenJOurnalLine."Journal Batch Name");
+            IF GenJnlLine_GRec.FindSet() then begin
+                repeat
+                    IF GenJnlLine_GRec."Journal Batch Name" = 'TEST' then
+                        IF GenJnlLine_GRec.Comment = '' then
+                            Counts += 1;
+                until GenJnlLine_GRec.Next() = 0;
+                IF Counts <> 0 then
+                    Error('Comment is Required for Line No. %1', GenJnlLine_GRec."Line No.");
+                Counts := 0;
+            end;
+        end;
+    end;
+
+    var
+        GenJnlLine_GRec: Record "Gen. Journal Line";
+        Counts: Integer;
+}
